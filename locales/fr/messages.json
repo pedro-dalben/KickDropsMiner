@@ -52,5 +52,20 @@
   "tag_paused": "PAUSE",
   "tag_finished": "TERMINÉ",
   "tag_stop": "STOP",
-  "retry": "Réessayer"
+  "retry": "Réessayer",
+  "btn_drops": "Campagnes Drops",
+  "drops_title": "Campagnes de Drops Actives",
+  "drops_game": "Jeu",
+  "drops_campaign": "Campagne",
+  "drops_channels": "Chaînes",
+  "btn_refresh_drops": "Actualiser",
+  "btn_add_channel": "Ajouter cette chaîne",
+  "btn_add_all_channels": "Ajouter toutes les chaînes",
+  "btn_remove_all_channels": "Supprimer toutes les chaînes",
+  "drops_loading": "Chargement des campagnes...",
+  "drops_loaded": "{count} campagne(s) trouvée(s)",
+  "drops_error": "Erreur lors du chargement des campagnes",
+  "drops_no_channels": "Aucune chaîne disponible pour cette campagne (ou c'est un Drop Global)",
+  "drops_added": "Ajouté: {channel}",
+  "drops_watch_minutes": "Minutes à regarder:"
 }

@@ -53,5 +53,20 @@
   "tag_paused": "DURDURULDU",
   "tag_finished": "BİTTİ",
   "tag_stop": "DURDUR",
-  "retry": "Tekrar dene"
+  "retry": "Tekrar dene",
+  "btn_drops": "Drop Kampanyaları",
+  "drops_title": "Aktif Drop Kampanyaları",
+  "drops_game": "Oyun",
+  "drops_campaign": "Kampanya",
+  "drops_channels": "Kanallar",
+  "btn_refresh_drops": "Yenile",
+  "btn_add_channel": "Bu Kanalı Ekle",
+  "btn_add_all_channels": "Tüm Kanalları Ekle",
+  "btn_remove_all_channels": "Tüm Kanalları Kaldır",
+  "drops_loading": "Kampanyalar yükleniyor...",
+  "drops_loaded": "{count} kampanya bulundu",
+  "drops_error": "Kampanyalar yüklenirken hata",
+  "drops_no_channels": "Bu kampanya için kanal yok (veya bu bir Global Drop)",
+  "drops_added": "Eklendi: {channel}",
+  "drops_watch_minutes": "İzlenecek dakika:"
 }
