@@ -51,6 +51,7 @@ BUILTIN_TRANSLATIONS = {
         "language_fr": "Français",
         "language_en": "English",
         "language_tr": "Turc",
+        "language_pt_br": "Português (BR)",
         "prompt_live_url_title": "Live URL",
         "prompt_live_url_msg": "Entre l'URL Kick du live :",
         "prompt_minutes_title": "Objectif (minutes)",
@@ -125,6 +126,7 @@ BUILTIN_TRANSLATIONS = {
         "language_fr": "Français",
         "language_en": "English",
         "language_tr": "Turkish",
+        "language_pt_br": "Português (BR)",
         "prompt_live_url_title": "Live URL",
         "prompt_live_url_msg": "Enter the Kick live URL:",
         "prompt_minutes_title": "Target (minutes)",
@@ -177,12 +179,87 @@ BUILTIN_TRANSLATIONS = {
         "warning": "Warning",
         "cannot_edit_active_stream": "Cannot edit the duration of an active stream. Please stop it first.",
     },
+    "pt-br": {
+        "status_ready": "Pronto",
+        "title_streams": "Lista de streams",
+        "col_minutes": "Objetivo (min)",
+        "col_elapsed": "Decorrido",
+        "btn_add": "Adicionar link",
+        "btn_remove": "Remover",
+        "btn_start_queue": "Iniciar fila",
+        "btn_stop_sel": "Parar selecionado",
+        "btn_signin": "Entrar (cookies)",
+        "btn_chromedriver": "Chromedriver...",
+        "btn_extension": "Extensão Chrome...",
+        "switch_mute": "Mudo",
+        "switch_hide": "Ocultar player",
+        "switch_mini": "Mini player",
+        "label_theme": "Tema",
+        "theme_dark": "Escuro",
+        "theme_light": "Claro",
+        "label_language": "Idioma",
+        "language_fr": "Français",
+        "language_en": "English",
+        "language_tr": "Turkish",
+        "language_pt_br": "Português (BR)",
+        "prompt_live_url_title": "URL do Live",
+        "prompt_live_url_msg": "Digite a URL do live do Kick:",
+        "prompt_minutes_title": "Objetivo (minutos)",
+        "prompt_minutes_msg": "Minutos para assistir (0 = infinito):",
+        "status_link_added": "Link adicionado",
+        "status_link_removed": "Link removido",
+        "offline_wait_retry": "Offline: {url} - aguardando próxima tentativa",
+        "error": "Erro",
+        "invalid_url": "URL inválida.",
+        "cookies_missing_title": "Cookies ausentes",
+        "cookies_missing_msg": "Nenhum cookie salvo. Abrir navegador para entrar?",
+        "status_playing": "Reproduzindo: {url}",
+        "queue_running_status": "Fila em execução - {url}",
+        "queue_finished_status": "Fila finalizada",
+        "status_stopped": "Parado",
+        "chrome_start_fail": "Chrome não pôde iniciar: {e}",
+        "action_required": "Ação necessária",
+        "sign_in_and_click_ok": "Entre na janela do Chrome, depois clique em OK para salvar os cookies.",
+        "ok": "OK",
+        "cookies_saved_for": "Cookies salvos para {domain}",
+        "cannot_save_cookies": "Não foi possível salvar os cookies: {e}",
+        "connect_title": "Login",
+        "open_url_to_get_cookies": "Abrir {url} para recuperar os cookies?",
+        "pick_chromedriver_title": "Selecione o chromedriver (ou binário ChromeDriver)",
+        "executables_filter": "Executáveis",
+        "chromedriver_set": "Chromedriver definido: {path}",
+        "pick_extension_title": "Selecione uma extensão (.crx) ou pasta de extensão descompactada",
+        "extension_set": "Extensão definida: {path}",
+        "all_files_filter": "Todos os arquivos",
+        "tag_live": "AO VIVO",
+        "tag_paused": "PAUSADO",
+        "tag_finished": "FINALIZADO",
+        "tag_stop": "PARAR",
+        "retry": "Tentar novamente",
+        "btn_drops": "Campanhas de Drops",
+        "drops_title": "Campanhas de Drops Ativas",
+        "drops_game": "Jogo",
+        "drops_campaign": "Campanha",
+        "drops_channels": "Canais",
+        "btn_refresh_drops": "Atualizar",
+        "btn_add_channel": "Adicionar Este Canal",
+        "btn_add_all_channels": "Adicionar Todos os Canais",
+        "btn_remove_all_channels": "Remover Todos os Canais",
+        "drops_loading": "Carregando campanhas...",
+        "drops_loaded": "{count} campanha(s) encontrada(s)",
+        "drops_error": "Erro ao carregar campanhas",
+        "drops_no_channels": "Nenhum canal disponível para esta campanha (ou é um Drop Global)",
+        "drops_added": "Adicionado: {channel}",
+        "drops_watch_minutes": "Minutos para assistir:",
+        "warning": "Aviso",
+        "cannot_edit_active_stream": "Não é possível editar a duração de um stream ativo. Por favor, pare-o primeiro.",
+    },
 }
 
 
 def _load_external_translations():
     data = {}
-    for lang in ("fr", "en", "tr"):
+    for lang in ("fr", "en", "tr", "pt-br"):
         path = os.path.join(APP_DIR, "locales", lang, "messages.json")
         try:
             with open(path, "r", encoding="utf-8") as f:
@@ -194,7 +271,7 @@ def _load_external_translations():
 
 def _merge_fallback(external, builtin):
     result = {}
-    for lang in ("fr", "en", "tr"):
+    for lang in ("fr", "en", "tr", "pt-br"):
         merged = dict(builtin.get(lang, {}))
         merged.update(external.get(lang, {}))
         result[lang] = merged
@@ -1002,17 +1079,19 @@ class App(ctk.CTk):
         )
         theme_menu.grid(row=13, column=0, padx=14, pady=(0, 14), sticky="w")
 
-        # Language (only FR/EN in dropdown for now)
-        self.lang_var = tk.StringVar(
-            value=self.t("language_fr")
-            if self.config_data.language == "fr"
-            else self.t("language_en")
-        )
+        # Language selector
+        lang_options = {
+            "fr": self.t("language_fr"),
+            "en": self.t("language_en"),
+            "pt-br": self.t("language_pt_br"),
+        }
+        current_lang_display = lang_options.get(self.config_data.language, self.t("language_en"))
+        self.lang_var = tk.StringVar(value=current_lang_display)
         lang_label = ctk.CTkLabel(self.sidebar, text=self.t("label_language"))
         lang_label.grid(row=14, column=0, padx=14, pady=(4, 4), sticky="w")
         lang_menu = ctk.CTkOptionMenu(
             self.sidebar,
-            values=[self.t("language_fr"), self.t("language_en")],
+            values=[self.t("language_fr"), self.t("language_en"), self.t("language_pt_br")],
             command=self.change_language,
             variable=self.lang_var,
             width=180,
@@ -1155,8 +1234,14 @@ class App(ctk.CTk):
 
     # ----------- Language -----------
     def change_language(self, choice):
-        # Map the choice to fr/en
-        new_lang = "fr" if "français" in choice.lower() else "en"
+        # Map the choice to fr/en/pt-br
+        choice_lower = choice.lower()
+        if "français" in choice_lower or "francais" in choice_lower:
+            new_lang = "fr"
+        elif "português" in choice_lower or "portugues" in choice_lower or "pt-br" in choice_lower or "pt_br" in choice_lower:
+            new_lang = "pt-br"
+        else:
+            new_lang = "en"
         
         if new_lang == self.config_data.language:
             return  # No change needed
@@ -1184,6 +1269,7 @@ class App(ctk.CTk):
             if self.status_var.get() in (
                 translate("fr", "status_ready"),
                 translate("en", "status_ready"),
+                translate("pt-br", "status_ready"),
             ):
                 self.status_var.set(self.t("status_ready"))
         except Exception:
