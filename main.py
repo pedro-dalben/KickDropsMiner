@@ -168,6 +168,12 @@ def translate(lang: str, key: str) -> str:
 # ===============================
 # Utilitaires / données
 # ===============================
+def format_elapsed_time(seconds):
+    """Format seconds as MM:SS"""
+    minutes = seconds // 60
+    secs = seconds % 60
+    return f"{minutes:02d}:{secs:02d}"
+
 def domain_from_url(url):
     p = urlparse(url)
     return p.netloc
@@ -330,20 +336,23 @@ class StreamWorker(threading.Thread):
         minutes_target,
         on_update=None,
         on_finish=None,
+        on_save_progress=None,
         stop_event=None,
         driver_path=None,
         extension_path=None,
         hide_player=False,
         mute=True,
         mini_player=False,
+        initial_elapsed_seconds=0,
     ):
         super().__init__(daemon=True)
         self.url = url
         self.minutes_target = minutes_target
         self.on_update = on_update
         self.on_finish = on_finish
+        self.on_save_progress = on_save_progress
         self.stop_event = stop_event or threading.Event()
-        self.elapsed_seconds = 0
+        self.elapsed_seconds = initial_elapsed_seconds
         self.driver = None
         self.driver_path = driver_path
         self.extension_path = extension_path
@@ -355,6 +364,9 @@ class StreamWorker(threading.Thread):
         self._last_live_check = 0.0
         self._last_live_value = True
         self._live_check_interval = 30  # seconds
+        # Periodic save (every 5 minutes = 300 seconds)
+        self._last_save_time = time.time()
+        self._save_interval = 300  # 5 minutes
 
     def run(self):
         domain = domain_from_url(self.url)
@@ -401,10 +413,20 @@ class StreamWorker(threading.Thread):
                     pass
                 if live:
                     self.elapsed_seconds += 1
-                if time.time() - last_report >= 1:
-                    last_report = time.time()
+                    # Update UI immediately when elapsed time changes
                     if self.on_update:
                         self.on_update(self.elapsed_seconds, live)
+                elif time.time() - last_report >= 1:
+                    # Update UI even when paused (to show paused status)
+                    if self.on_update:
+                        self.on_update(self.elapsed_seconds, live)
+                if time.time() - last_report >= 1:
+                    last_report = time.time()
+                # Save progress every 5 minutes
+                if time.time() - self._last_save_time >= self._save_interval:
+                    self._last_save_time = time.time()
+                    if self.on_save_progress:
+                        self.on_save_progress(self.elapsed_seconds)
                 if self.minutes_target and self.elapsed_seconds >= self.minutes_target * 60:
                     self.completed = True
                     break
@@ -519,8 +541,23 @@ class Config:
             self.mini_player = data.get("mini_player", False)
             self.dark_mode = data.get("dark_mode", True)
             self.language = data.get("language", "fr")
+            # Ensure each item has required fields
+            for item in self.items:
+                if "elapsed_seconds" not in item:
+                    item["elapsed_seconds"] = 0
+                if "status" not in item:
+                    item["status"] = "pending"  # pending, running, stopped, finished
         else:
+            # Default values when config file doesn't exist
             self.items = []
+            # Other values are already set in __init__, but ensure they're explicit
+            self.chromedriver_path = None
+            self.extension_path = None
+            self.mute = True
+            self.hide_player = False
+            self.mini_player = False
+            self.dark_mode = True
+            self.language = "fr"
 
     def save(self):
         data = {
@@ -537,12 +574,25 @@ class Config:
             json.dump(data, f, indent=2)
 
     def add(self, url, minutes):
-        self.items.append({"url": url, "minutes": minutes})
+        self.items.append({
+            "url": url,
+            "minutes": minutes,
+            "elapsed_seconds": 0,
+            "status": "pending"
+        })
         self.save()
 
     def remove(self, idx):
         del self.items[idx]
         self.save()
+
+    def update_elapsed(self, idx, elapsed_seconds, status=None):
+        """Update elapsed time and optionally status for an item"""
+        if 0 <= idx < len(self.items):
+            self.items[idx]["elapsed_seconds"] = elapsed_seconds
+            if status is not None:
+                self.items[idx]["status"] = status
+            self.save()
 
 # ===============================
 # Application (CustomTkinter UI)
@@ -559,6 +609,9 @@ class App(ctk.CTk):
         self._interactive_driver = None  # Chrome pour capture de cookies
         self.queue_running = False
         self.queue_current_idx = None
+        # Timer for periodic auto-save
+        self._auto_save_timer = None
+        self._start_auto_save()
 
         # Helper traduction
         def _t(key: str, **kwargs):
@@ -601,6 +654,18 @@ class App(ctk.CTk):
             self.protocol("WM_DELETE_WINDOW", self.on_close)
         except Exception:
             pass
+
+    def _start_auto_save(self):
+        """Start timer for periodic auto-save"""
+        self._save_all_progress()
+        # Schedule next save in 5 minutes (300000 ms)
+        self._auto_save_timer = self.after(300000, self._start_auto_save)
+
+    def _save_all_progress(self):
+        """Save progress of all active workers"""
+        for idx, worker in self.workers.items():
+            if idx < len(self.config_data.items):
+                self.config_data.update_elapsed(idx, worker.elapsed_seconds, "running")
 
     # ----------- UI construction -----------
     def _build_sidebar(self):
@@ -779,12 +844,25 @@ class App(ctk.CTk):
         for r in self.tree.get_children():
             self.tree.delete(r)
         for i, item in enumerate(self.config_data.items):
-            elapsed = self.workers[i].elapsed_seconds if i in self.workers else 0
+            # Use worker elapsed if running, otherwise use saved value
+            if i in self.workers:
+                elapsed = self.workers[i].elapsed_seconds
+            else:
+                elapsed = item.get("elapsed_seconds", 0)
+            
             tags = ["odd" if i % 2 else "even"]
+            status = item.get("status", "pending")
+            
+            # Format elapsed time with status if applicable
+            elapsed_str = format_elapsed_time(elapsed)
             if item.get("finished"):
                 tags.append("finished")
+                elapsed_str = f"{format_elapsed_time(elapsed)} ({self.t('tag_finished')})"
+            elif status == "stopped":
+                elapsed_str = f"{format_elapsed_time(elapsed)} ({self.t('tag_stop')})"
+            
             self.tree.insert("", "end", iid=str(i),
-                             values=(item["url"], item["minutes"], f"{elapsed}s"),
+                             values=(item["url"], item["minutes"], elapsed_str),
                              tags=tuple(tags))
 
     def add_link(self):
@@ -852,19 +930,25 @@ class App(ctk.CTk):
                     self.obtain_cookies_interactively(item["url"], domain)
 
         stop_event = threading.Event()
+        # Load saved elapsed time to continue from where it stopped
+        initial_elapsed = item.get("elapsed_seconds", 0)
         worker = StreamWorker(
             item["url"],
             item["minutes"],
             on_update=lambda s, live: self.on_worker_update(idx, s, live),
             on_finish=lambda e, c: self.on_worker_finish(idx, e, c),
+            on_save_progress=lambda s: self.on_worker_save_progress(idx, s),
             stop_event=stop_event,
             driver_path=self.config_data.chromedriver_path,
             extension_path=self.config_data.extension_path,
             hide_player=bool(self.hide_player_var.get()),
             mute=bool(self.mute_var.get()),
             mini_player=bool(self.mini_player_var.get()),
+            initial_elapsed_seconds=initial_elapsed,
         )
         self.workers[idx] = worker
+        # Update status to "running"
+        self.config_data.update_elapsed(idx, initial_elapsed, "running")
         worker.start()
         self.tree.selection_set(str(idx))
         self.status_var.set(self.t("status_playing", url=item['url']))
@@ -897,13 +981,17 @@ class App(ctk.CTk):
             return
         idx = int(sel[0])
         if idx in self.workers:
+            # Save progress before stopping
+            elapsed = self.workers[idx].elapsed_seconds
             self.workers[idx].stop()
             del self.workers[idx]
+            # Update status to "stopped" and save progress
+            self.config_data.update_elapsed(idx, elapsed, "stopped")
             self.status_var.set(self.t("status_stopped"))
             # Met à jour l'affichage
             if str(idx) in self.tree.get_children():
                 values = list(self.tree.item(str(idx), "values"))
-                values[2] = f"{values[2]} ({self.t('tag_stop')})"
+                values[2] = f"{format_elapsed_time(elapsed)} ({self.t('tag_stop')})"
                 self.tree.item(str(idx), values=values)
 
     def obtain_cookies_interactively(self, url, domain):
@@ -933,6 +1021,19 @@ class App(ctk.CTk):
                 self._interactive_driver = None
 
     def on_close(self):
+        # Cancel auto-save timer
+        try:
+            if self._auto_save_timer:
+                self.after_cancel(self._auto_save_timer)
+        except Exception:
+            pass
+
+        # Save final progress of all workers before closing
+        try:
+            self._save_all_progress()
+        except Exception:
+            pass
+
         # Arrête la file et ferme toutes les fenêtres de navigateur
         try:
             self.queue_running = False
@@ -953,6 +1054,9 @@ class App(ctk.CTk):
         # Stoppe et ferme tous les drivers Selenium des workers
         for idx, w in list(self.workers.items()):
             try:
+                # Save progress before stopping
+                if idx < len(self.config_data.items):
+                    self.config_data.update_elapsed(idx, w.elapsed_seconds, "stopped")
                 w.stop()
             except Exception:
                 pass
@@ -1053,13 +1157,15 @@ class App(ctk.CTk):
             if str(idx) in self.tree.get_children():
                 values = list(self.tree.item(str(idx), "values"))
                 tag = self.t("tag_live") if live else self.t("tag_paused")
-                values[2] = f"{seconds}s ({tag})"
+                values[2] = f"{format_elapsed_time(seconds)} ({tag})"
                 current_tags = set(self.tree.item(str(idx), 'tags') or [])
                 if live:
                     current_tags.discard('paused')
                 else:
                     current_tags.add('paused')
                 self.tree.item(str(idx), values=values, tags=tuple(current_tags))
+                # Force immediate UI update
+                self.update_idletasks()
         self.after(0, ui_update)
 
     def on_worker_finish(self, idx, elapsed, completed):
@@ -1067,22 +1173,32 @@ class App(ctk.CTk):
             if idx < 0 or idx >= len(self.config_data.items):
                 return
             if completed:
+                # Mark as finished and save final progress
+                self.config_data.update_elapsed(idx, elapsed, "finished")
                 self.config_data.items[idx]["finished"] = True
                 self.config_data.save()
                 if str(idx) in self.tree.get_children():
                     values = list(self.tree.item(str(idx), "values"))
-                    values[2] = f"{elapsed}s ({self.t('tag_finished')})"
+                    values[2] = f"{format_elapsed_time(elapsed)} ({self.t('tag_finished')})"
                     current_tags = set(self.tree.item(str(idx), 'tags') or [])
                     current_tags.add('finished')
                     current_tags.discard('paused')
                     current_tags.discard('redo')
                     self.tree.item(str(idx), values=values, tags=tuple(current_tags))
+            else:
+                # If not completed (interrupted), save progress with stopped status
+                self.config_data.update_elapsed(idx, elapsed, "stopped")
 
             # Enchaîne la file le cas échéant
             if getattr(self, "queue_running", False) and self.queue_current_idx == idx:
                 self._run_queue_from(idx + 1)
 
         self.after(0, ui_finish)
+
+    def on_worker_save_progress(self, idx, elapsed_seconds):
+        """Callback called periodically by worker to save progress"""
+        if idx < len(self.config_data.items):
+            self.config_data.update_elapsed(idx, elapsed_seconds, "running")
 
 # ===============================
 # Main

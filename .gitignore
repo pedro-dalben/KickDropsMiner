@@ -1,4 +1,4 @@
-# Ignore lo*cal app data
+# Ignore local app data
 cookies/*
 chrome_data/*
 config.json*
@@ -7,3 +7,5 @@ __pycache__/
 dist/
 build/
 *.spec
+venv/
+.venv/

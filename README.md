@@ -25,12 +25,14 @@ Automates watching Kick.com streams to accumulate drop time. Comes with a compac
 
 ## Requirements
 
-- Windows 10/11 (Linux and macOS likely work but are not the primary target)
-- Python 3.10+ (tested with 3.10)
+- Windows 10/11, Linux (Ubuntu/Debian), or macOS
+- Python 3.10+ (tested with 3.10, 3.12)
 - Google Chrome installed
 - Internet access (for `webdriver-manager` to fetch a matching ChromeDriver)
 
 ## Install
+
+### Windows
 
 1) Create and activate a virtual environment (recommended)
 
@@ -45,6 +47,44 @@ Automates watching Kick.com streams to accumulate drop time. Comes with a compac
 
    - `python main.py`
    - Or double‑click `run.bat` on Windows
+
+### Linux (Ubuntu/Debian)
+
+1) Install system dependencies
+
+   - Install Python 3 and tkinter (required for GUI):
+     ```bash
+     sudo apt update
+     sudo apt install -y python3 python3-venv python3-tk
+     ```
+
+2) Create and activate a virtual environment (recommended)
+
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+
+3) Install Python dependencies
+
+   ```bash
+   pip install --upgrade pip
+   pip install -r requirements.txt
+   ```
+   
+   Or install manually:
+   ```bash
+   pip install customtkinter pillow selenium webdriver-manager undetected-chromedriver setuptools
+   ```
+
+4) Run
+
+   ```bash
+   source venv/bin/activate
+   python main.py
+   ```
+
+**Note:** On Linux, `tkinter` must be installed via the system package manager (`python3-tk`), as it cannot be installed via pip. The `setuptools` package is required for Python 3.12+ compatibility with `undetected-chromedriver`.
 
 ## Sign In and Cookies
 
