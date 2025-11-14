@@ -9,3 +9,5 @@ build/
 *.spec
 venv/
 .venv/
+example_response.json
+/useful data
